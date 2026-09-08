@@ -1,0 +1,55 @@
+{
+    "name": "flatrate/flarum-media-privacy",
+    "description": "FlatRate.wiki forum upload privacy guard for opaque FoF Upload basenames.",
+    "type": "flarum-extension",
+    "license": "MIT",
+    "keywords": [
+        "flarum",
+        "privacy",
+        "upload",
+        "fof-upload",
+        "basename"
+    ],
+    "homepage": "https://flatrate.wiki",
+    "support": {
+        "issues": "https://github.com/mrkcntrmn/flatrate-flarum-media-privacy/issues",
+        "source": "https://github.com/mrkcntrmn/flatrate-flarum-media-privacy"
+    },
+    "require": {
+        "php": "^8.1",
+        "flarum/core": "^1.8.19"
+    },
+    "require-dev": {
+        "fof/upload": "1.9.0",
+        "phpunit/phpunit": "^9.6"
+    },
+    "suggest": {
+        "fof/upload": "Target integration is FoF Upload 1.9.0; the privacy listener is inert when FoF Upload is absent or disabled."
+    },
+    "autoload": {
+        "psr-4": {
+            "FlatRate\\FlarumMediaPrivacy\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "FlatRate\\FlarumMediaPrivacy\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "extra": {
+        "flarum-extension": {
+            "title": "FlatRate Media Privacy",
+            "category": "feature",
+            "icon": {
+                "name": "fas fa-user-shield",
+                "backgroundColor": "#111827",
+                "color": "#ffffff"
+            }
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
