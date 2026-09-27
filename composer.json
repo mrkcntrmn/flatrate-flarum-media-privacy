@@ -1,6 +1,6 @@
 {
     "name": "flatrate/flarum-media-privacy",
-    "description": "FlatRate.wiki forum upload privacy guard for opaque FoF Upload basenames.",
+    "description": "FlatRate.wiki FoF Upload privacy guard: opaque basenames and fail-closed image metadata stripping.",
     "type": "flarum-extension",
     "license": "MIT",
     "keywords": [
@@ -17,14 +17,17 @@
     },
     "require": {
         "php": "^8.1",
-        "flarum/core": "^1.8.19"
+        "flarum/core": "^1.8.19",
+        "ext-gd": "*",
+        "ext-exif": "*"
     },
     "require-dev": {
         "fof/upload": "1.9.0",
         "phpunit/phpunit": "^9.6"
     },
     "suggest": {
-        "fof/upload": "Target integration is FoF Upload 1.9.0; the privacy listener is inert when FoF Upload is absent or disabled."
+        "fof/upload": "Target integration is FoF Upload 1.9.0; the privacy listener is inert when FoF Upload is absent or disabled.",
+        "ext-imagick": "Optional; required only to accept HEIC/HEIF uploads instead of rejecting them."
     },
     "autoload": {
         "psr-4": {
@@ -47,7 +50,10 @@
                 "name": "fas fa-user-shield",
                 "backgroundColor": "#111827",
                 "color": "#ffffff"
-            }
+            },
+            "optional-dependencies": [
+                "fof-upload"
+            ]
         }
     },
     "minimum-stability": "stable",
