@@ -14,33 +14,22 @@ final class OrientationQuadrantTest extends TestCase
 {
     private ImageMetadataStripper $stripper;
 
-    private string $masterPath;
-
     protected function setUp(): void
     {
         $this->stripper = new ImageMetadataStripper();
-        $this->masterPath = sys_get_temp_dir().'/privacy-quadrant-master-'.bin2hex(random_bytes(4)).'.jpg';
-        QuadrantOrientationFixtureBuilder::createMasterJpeg($this->masterPath);
-    }
-
-    protected function tearDown(): void
-    {
-        if (isset($this->masterPath) && is_file($this->masterPath)) {
-            @unlink($this->masterPath);
-        }
     }
 
     /**
      * @dataProvider orientationProvider
      */
-    public function test_jpeg_orientation_normalizes_quadrants_and_removes_tag(int $orientation): void
+    public function test_jpeg_orientation_normalizes_to_absolute_quadrant_layout(int $orientation): void
     {
         $path = sys_get_temp_dir().'/privacy-orient-'.bin2hex(random_bytes(4)).'.jpg';
         QuadrantOrientationFixtureBuilder::createTaggedJpeg($path, $orientation);
 
         $this->stripper->strip($path, 'image/jpeg');
 
-        QuadrantOrientationFixtureBuilder::assertQuadrantsMatchMaster($path, $this->masterPath);
+        QuadrantOrientationFixtureBuilder::assertNormalizedUprightLayout($path);
         QuadrantOrientationFixtureBuilder::assertOrientationTagAbsent($path);
 
         @unlink($path);
