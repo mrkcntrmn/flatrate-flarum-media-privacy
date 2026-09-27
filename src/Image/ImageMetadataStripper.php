@@ -17,12 +17,11 @@ final class ImageMetadataStripper
     /** @var array<string, string> */
     private const MIME_TO_FORMAT = [
         'image/jpeg' => 'jpeg',
-        'image/jpg' => 'jpeg',
-        'image/pjpeg' => 'jpeg',
         'image/png' => 'png',
-        'image/x-png' => 'png',
         'image/gif' => 'gif',
         'image/webp' => 'webp',
+        'image/bmp' => 'bmp',
+        'image/x-ms-bmp' => 'bmp',
         'image/heic' => 'heic',
         'image/heif' => 'heif',
         'image/heic-sequence' => 'heic',
@@ -31,6 +30,8 @@ final class ImageMetadataStripper
 
     public function supportsMime(string $mime): bool
     {
+        $mime = ImageUploadMimeInspector::normalizeMime($mime);
+
         return isset(self::MIME_TO_FORMAT[$mime]);
     }
 
@@ -40,8 +41,10 @@ final class ImageMetadataStripper
             throw new ImageMetadataStripFailedException('Upload file is not readable');
         }
 
+        $mime = ImageUploadMimeInspector::normalizeMime($mime);
+
         if (!isset(self::MIME_TO_FORMAT[$mime])) {
-            return;
+            throw new ImageMetadataStripFailedException('Unsupported image upload type');
         }
 
         $format = self::MIME_TO_FORMAT[$mime];
@@ -51,6 +54,7 @@ final class ImageMetadataStripper
             'png' => $this->stripPng($path),
             'gif' => $this->stripGif($path),
             'webp' => $this->stripWebp($path),
+            'bmp' => $this->stripBmp($path),
             'heic', 'heif' => $this->stripHeic($path),
             default => throw new ImageMetadataStripFailedException('Unsupported image upload type'),
         };
@@ -117,6 +121,27 @@ final class ImageMetadataStripper
         if (@imagegif($image, $path) === false) {
             imagedestroy($image);
             throw new ImageMetadataStripFailedException('Failed to rewrite GIF upload');
+        }
+
+        imagedestroy($image);
+    }
+
+    private function stripBmp(string $path): void
+    {
+        $this->assertGdAvailable();
+
+        if (!function_exists('imagecreatefrombmp') || !function_exists('imagebmp')) {
+            throw new ImageMetadataStripFailedException('BMP uploads are not supported on this server');
+        }
+
+        $image = @imagecreatefrombmp($path);
+        if ($image === false) {
+            throw new ImageMetadataStripFailedException('Corrupted BMP upload');
+        }
+
+        if (@imagebmp($image, $path) === false) {
+            imagedestroy($image);
+            throw new ImageMetadataStripFailedException('Failed to rewrite BMP upload');
         }
 
         imagedestroy($image);

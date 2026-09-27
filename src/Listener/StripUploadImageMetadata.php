@@ -9,10 +9,14 @@ namespace FlatRate\FlarumMediaPrivacy\Listener;
 use Flarum\Foundation\ValidationException;
 use FlatRate\FlarumMediaPrivacy\Image\ImageMetadataStripFailedException;
 use FlatRate\FlarumMediaPrivacy\Image\ImageMetadataStripper;
+use FlatRate\FlarumMediaPrivacy\Image\ImageUploadMimeInspector;
 use FoF\Upload\Events\File\WillBeUploaded;
 
 /**
  * Strip identifying image metadata from FoF Upload temp files before storage adapters run.
+ *
+ * FoF Upload 1.9 sets {@see WillBeUploaded::$mime} from {@see FileRepository::determineMime()},
+ * which content-sniffs via php-mime-detector + fileinfo (not the client Content-Type).
  */
 final class StripUploadImageMetadata
 {
@@ -23,10 +27,6 @@ final class StripUploadImageMetadata
 
     public function handle(WillBeUploaded $event): void
     {
-        if (!$this->stripper->supportsMime($event->mime)) {
-            return;
-        }
-
         $path = $event->uploadedFile->getRealPath();
         if ($path === false) {
             throw new ValidationException([
@@ -34,8 +34,20 @@ final class StripUploadImageMetadata
             ]);
         }
 
+        if (!ImageUploadMimeInspector::isImageUpload($event->mime, $path)) {
+            return;
+        }
+
+        $stripMime = ImageUploadMimeInspector::resolveStripMime($event->mime, $path);
+
+        if (!$this->stripper->supportsMime($stripMime)) {
+            throw new ValidationException([
+                'upload' => 'Upload could not be sanitized for privacy',
+            ]);
+        }
+
         try {
-            $this->stripper->strip($path, $event->mime);
+            $this->stripper->strip($path, $stripMime);
         } catch (ImageMetadataStripFailedException) {
             throw new ValidationException([
                 'upload' => 'Upload could not be sanitized for privacy',

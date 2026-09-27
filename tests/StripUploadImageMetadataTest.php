@@ -44,6 +44,68 @@ final class StripUploadImageMetadataTest extends TestCase
         $this->assertSame(filesize($path), $event->file->size);
     }
 
+    public function test_listener_rejects_unlisted_image_mime(): void
+    {
+        $path = $this->tempPath('reject.tif');
+        if (class_exists(\Imagick::class)) {
+            $imagick = new \Imagick();
+            $imagick->newImage(12, 10, new \ImagickPixel('blue'));
+            $imagick->setImageFormat('tiff');
+            $imagick->writeImage($path);
+            $imagick->clear();
+            $imagick->destroy();
+        } else {
+            $this->markTestSkipped('Imagick is required to build a TIFF fixture');
+        }
+
+        $upload = new UploadedFile($path, 'reject.tif', 'image/tiff', null, true);
+        $file = (new File())->forceFill([
+            'uuid' => '00000000-0000-4000-8000-000000000003',
+            'base_name' => bin2hex(random_bytes(16)).'.tif',
+            'size' => filesize($path),
+            'type' => 'image/tiff',
+        ]);
+
+        $event = new WillBeUploaded(
+            $this->createMock(User::class),
+            $file,
+            $upload,
+            'image/tiff'
+        );
+
+        try {
+            (new StripUploadImageMetadata(new ImageMetadataStripper()))->handle($event);
+            $this->fail('Expected ValidationException for unsupported image/tiff upload');
+        } catch (ValidationException $e) {
+            $this->assertSame(['upload' => 'Upload could not be sanitized for privacy'], $e->getAttributes());
+        }
+    }
+
+    public function test_listener_strips_jpg_alias_mime(): void
+    {
+        $path = $this->tempPath('alias.jpg');
+        ExifFixtureBuilder::createJpegWithMetadata($path, 100, 80);
+
+        $upload = new UploadedFile($path, 'alias.jpg', 'image/jpg', null, true);
+        $file = (new File())->forceFill([
+            'uuid' => '00000000-0000-4000-8000-000000000004',
+            'base_name' => bin2hex(random_bytes(16)).'.jpg',
+            'size' => filesize($path),
+            'type' => 'image/jpg',
+        ]);
+
+        $event = new WillBeUploaded(
+            $this->createMock(User::class),
+            $file,
+            $upload,
+            'image/jpg'
+        );
+
+        (new StripUploadImageMetadata(new ImageMetadataStripper()))->handle($event);
+
+        ExifFixtureBuilder::assertNoIdentifyingMetadata($path);
+    }
+
     public function test_listener_fails_closed_when_stripper_rejects_upload(): void
     {
         $path = $this->tempPath('reject.jpg');

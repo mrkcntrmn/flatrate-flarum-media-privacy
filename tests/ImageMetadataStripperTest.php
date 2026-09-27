@@ -104,14 +104,32 @@ final class ImageMetadataStripperTest extends TestCase
         $this->stripper->strip($path, 'image/jpeg');
     }
 
-    public function test_non_image_mime_is_ignored(): void
+    public function test_unlisted_image_mime_fails_closed(): void
     {
-        $path = $this->tempPath('notes.txt');
-        file_put_contents($path, 'plain text');
+        if (!class_exists(\Imagick::class)) {
+            $this->markTestSkipped('Imagick is required to build a TIFF fixture');
+        }
 
-        $this->stripper->strip($path, 'text/plain');
+        $path = $this->tempPath('sample.tif');
+        $imagick = new \Imagick();
+        $imagick->newImage(12, 10, new \ImagickPixel('red'));
+        $imagick->setImageFormat('tiff');
+        $imagick->writeImage($path);
+        $imagick->clear();
+        $imagick->destroy();
 
-        $this->assertSame('plain text', file_get_contents($path));
+        $this->expectException(\FlatRate\FlarumMediaPrivacy\Image\ImageMetadataStripFailedException::class);
+        $this->stripper->strip($path, 'image/tiff');
+    }
+
+    public function test_jpg_alias_is_stripped(): void
+    {
+        $path = $this->tempPath('alias.jpg');
+        ExifFixtureBuilder::createJpegWithMetadata($path, 90, 70);
+
+        $this->stripper->strip($path, 'image/jpg');
+
+        ExifFixtureBuilder::assertNoIdentifyingMetadata($path);
     }
 
     private function tempPath(string $basename): string

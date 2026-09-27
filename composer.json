@@ -50,7 +50,10 @@
                 "name": "fas fa-user-shield",
                 "backgroundColor": "#111827",
                 "color": "#ffffff"
-            }
+            },
+            "optional-dependencies": [
+                "fof-upload"
+            ]
         }
     },
     "minimum-stability": "stable",
