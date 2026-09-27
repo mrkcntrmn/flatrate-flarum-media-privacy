@@ -11,6 +11,7 @@ use FlatRate\FlarumMediaPrivacy\Image\ImageMetadataStripFailedException;
 use FlatRate\FlarumMediaPrivacy\Image\ImageMetadataStripper;
 use FlatRate\FlarumMediaPrivacy\Image\ImageUploadMimeInspector;
 use FoF\Upload\Events\File\WillBeUploaded;
+use Psr\Log\LoggerInterface;
 
 /**
  * Strip identifying image metadata from FoF Upload temp files before storage adapters run.
@@ -21,7 +22,8 @@ use FoF\Upload\Events\File\WillBeUploaded;
 final class StripUploadImageMetadata
 {
     public function __construct(
-        private ImageMetadataStripper $stripper
+        private ImageMetadataStripper $stripper,
+        private ?LoggerInterface $logger = null
     ) {
     }
 
@@ -48,7 +50,13 @@ final class StripUploadImageMetadata
 
         try {
             $this->stripper->strip($path, $stripMime);
-        } catch (ImageMetadataStripFailedException) {
+        } catch (ImageMetadataStripFailedException $e) {
+            $this->logFailure($e);
+            throw new ValidationException([
+                'upload' => 'Upload could not be sanitized for privacy',
+            ]);
+        } catch (\Throwable $e) {
+            $this->logFailure($e);
             throw new ValidationException([
                 'upload' => 'Upload could not be sanitized for privacy',
             ]);
@@ -58,5 +66,17 @@ final class StripUploadImageMetadata
         if ($size !== false) {
             $event->file->size = $size;
         }
+    }
+
+    private function logFailure(\Throwable $e): void
+    {
+        if ($this->logger === null) {
+            return;
+        }
+
+        $this->logger->warning('FoF Upload image metadata strip failed', [
+            'exception' => $e::class,
+            'message' => $e->getMessage(),
+        ]);
     }
 }

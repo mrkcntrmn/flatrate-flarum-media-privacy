@@ -40,13 +40,13 @@ this extension listens to `FoF\Upload\Events\File\WillBeUploaded`.
 **MIME source:** FoF Upload 1.9 sets `$event->mime` from `FileRepository::determineMime()`,
 which content-sniffs the temp file (`SoftCreatR\MimeDetector` + PHP `fileinfo`) and
 rejects client/fileinfo mismatches. This extension re-sniffs the temp path with
-`mime_content_type()` / `getimagesize()` and treats any upload as an image when either
-FoF's detected MIME or the bytes indicate `image/*`.
+`mime_content_type()` / `getimagesize()` / `exif_imagetype()` and treats any upload
+as an image when either FoF's detected MIME or the bytes indicate `image/*`.
 
 **Fail-closed image policy:** every image upload must be sanitized or rejected. JPEG
 aliases (`image/jpg`, `image/pjpeg`, …) normalize to JPEG. Any other `image/*` type
-that cannot be stripped safely (TIFF, AVIF, JPEG XL, SVG, ICO, …) is rejected with a
-validation error rather than stored with metadata.
+that cannot be stripped safely (TIFF, AVIF, JPEG XL, SVG, ICO, HEIC/HEIF **sequences**,
+…) is rejected with a validation error rather than stored with metadata.
 
 For supported raster uploads, stored/served bytes are rewritten to remove:
 
@@ -58,23 +58,27 @@ For supported raster uploads, stored/served bytes are rewritten to remove:
 - GIF comment/application extensions (except the `NETSCAPE2.0` animation block)
 
 **Fail-closed:** if metadata cannot be removed safely, the upload is rejected with a
-validation error and nothing is stored with the original metadata.
+validation error and nothing is stored with the original metadata. Corrupt or malformed
+image bytes, GD parser warnings, and unexpected parser failures are converted to the
+same privacy rejection (with developer-oriented log lines that never include file
+contents or user identity).
 
 #### Accepted image formats
 
 | Format | Handling |
 | --- | --- |
-| JPEG (`image/jpeg`, `image/jpg`, `image/pjpeg`, …) | GD re-encode + EXIF orientation applied before discard |
+| JPEG (`image/jpeg`, `image/jpg`, `image/pjpeg`, …) | GD re-encode + EXIF orientation (values 1–8) applied before discard |
 | PNG | GD re-encode (drops textual/binary metadata chunks) |
 | WebP | GD re-encode when `imagecreatefromwebp` / `imagewebp` are available |
 | GIF | Comment/XMP application extensions stripped; static GIFs are GD re-encoded; animated GIFs keep frames but lose metadata extensions |
 | BMP | GD re-encode when `imagecreatefrombmp` / `imagebmp` are available |
-| HEIC/HEIF | **Rejected unless `ext-imagick` is present**; when present, Imagick `autoOrient` + `stripImage` |
+| HEIC/HEIF (single image) | **Rejected unless `ext-imagick` is present**; when present, Imagick `autoOrient` + `stripImage` |
 
 #### Rejected image formats (examples)
 
-`image/tiff`, `image/avif`, `image/jxl`, `image/svg+xml`, `image/x-icon`, and any
-other `image/*` type not listed above.
+`image/tiff`, `image/avif`, `image/jxl`, `image/svg+xml`, `image/x-icon`,
+`image/heic-sequence`, `image/heif-sequence`, and any other `image/*` type not listed
+above. HEIC/HEIF **burst/sequence** containers are not supported.
 
 #### Listener ordering (Flarum 1.8 / Illuminate 8)
 
@@ -93,31 +97,36 @@ asserts metadata is removed either way.
 
 This extension does **not** strip metadata from PDFs, video, office documents, or
 other non-image MIME types. Those formats can still embed author names, GPS, device
-IDs, and timestamps. Until separate sanitizers exist, **restrict allowed FoF Upload
-MIME types** on the forum to formats this extension handles (or non-metadata types
-you accept deliberately).
+IDs, and timestamps.
 
-#### Runtime image stack assumption (PikaPods / Flarum 1.8.19)
+#### Member-upload production gate (FlatRate.wiki)
 
-FlatRate.wiki runs on the managed PikaPods Flarum image (no shell). This extension
-depends only on PHP extensions that Flarum itself already requires for avatars and
-forum operation:
+Before **member uploads** are enabled on production, FoF Upload allowed MIME types
+must be limited to the privacy-qualified image set documented above (JPEG/PNG/WebP/GIF/BMP,
+plus HEIC/HEIF only when Imagick is verified on the host). **PDF, video, and office
+documents must remain blocked** until separate sanitizers are qualified for those
+families.
 
-- **`ext-gd` (required):** primary metadata removal path for JPEG, PNG, WebP, BMP, and static GIF
-- **`ext-exif` (required for JPEG orientation):** reads orientation before EXIF is discarded
-- **`ext-imagick` (optional):** if absent, **HEIC/HEIF uploads are rejected** rather than stored with metadata
+#### Runtime image stack (PikaPods / Flarum 1.8.19)
+
+Composer **requires** `ext-gd` and `ext-exif` on the Flarum host. **`ext-imagick` is
+optional** — when absent, HEIC/HEIF uploads are rejected rather than stored with metadata.
 
 Imagick is **not** required for JPEG/PNG/WebP/GIF/BMP. Intervention Image (pulled in by
 FoF Upload) is not used directly by this extension.
 
 ## Deliberate inert design
 
-Runtime `require` depends only on:
+Runtime `require` depends on:
 
 ```text
 php: ^8.1
 flarum/core: ^1.8.19
+ext-gd: *
+ext-exif: *
 ```
+
+(`php` and `flarum/core` version bumps are owned by Release Manager in separate prep PRs.)
 
 `fof/upload` is a `require-dev` / `suggest` operational target, **not** a hard
 runtime Composer dependency. The extension remains loadable and enableable when
@@ -139,9 +148,8 @@ composer validate --strict
 composer test
 ```
 
-CI matrix: PHP 8.1, 8.2, 8.3, 8.4 with FoF Upload pinned to `1.9.0`. Tests use
-ImageMagick/ExifTool on the runner to inject GPS/XMP/EXIF fixtures and verify the
-sanitized output.
+CI matrix: PHP 8.1, 8.2, 8.3, 8.4 with FoF Upload pinned to `1.9.0`, GD and EXIF
+enabled, plus ExifTool for fixtures. Each job runs `composer validate --strict`.
 
 ## License
 

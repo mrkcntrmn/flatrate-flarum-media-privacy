@@ -44,6 +44,34 @@ final class StripUploadImageMetadataTest extends TestCase
         $this->assertSame(filesize($path), $event->file->size);
     }
 
+    public function test_listener_rejects_heic_sequence_mime(): void
+    {
+        $path = $this->tempPath('sequence.heic');
+        file_put_contents($path, 'not-a-real-heic-sequence');
+
+        $upload = new UploadedFile($path, 'sequence.heic', 'image/heic-sequence', null, true);
+        $file = (new File())->forceFill([
+            'uuid' => '00000000-0000-4000-8000-000000000005',
+            'base_name' => bin2hex(random_bytes(16)).'.heic',
+            'size' => filesize($path),
+            'type' => 'image/heic-sequence',
+        ]);
+
+        $event = new WillBeUploaded(
+            $this->createMock(User::class),
+            $file,
+            $upload,
+            'image/heic-sequence'
+        );
+
+        try {
+            (new StripUploadImageMetadata(new ImageMetadataStripper()))->handle($event);
+            $this->fail('Expected ValidationException for image/heic-sequence upload');
+        } catch (ValidationException $e) {
+            $this->assertSame(['upload' => 'Upload could not be sanitized for privacy'], $e->getAttributes());
+        }
+    }
+
     public function test_listener_rejects_unlisted_image_mime(): void
     {
         $path = $this->tempPath('reject.tif');

@@ -24,8 +24,6 @@ final class ImageMetadataStripper
         'image/x-ms-bmp' => 'bmp',
         'image/heic' => 'heic',
         'image/heif' => 'heif',
-        'image/heic-sequence' => 'heic',
-        'image/heif-sequence' => 'heif',
     ];
 
     public function supportsMime(string $mime): bool
@@ -66,41 +64,45 @@ final class ImageMetadataStripper
     {
         $this->assertGdAvailable();
 
-        $orientation = $this->readJpegOrientation($path);
+        GdImageGuard::run(function () use ($path): void {
+            $orientation = $this->readJpegOrientation($path);
 
-        $image = @imagecreatefromjpeg($path);
-        if ($image === false) {
-            throw new ImageMetadataStripFailedException('Corrupted JPEG upload');
-        }
+            $image = @imagecreatefromjpeg($path);
+            if ($image === false) {
+                throw new ImageMetadataStripFailedException('Corrupted JPEG upload');
+            }
 
-        $image = Orientation::apply($image, $orientation);
+            $image = Orientation::apply($image, $orientation);
 
-        if (@imagejpeg($image, $path, self::JPEG_QUALITY) === false) {
+            if (@imagejpeg($image, $path, self::JPEG_QUALITY) === false) {
+                imagedestroy($image);
+                throw new ImageMetadataStripFailedException('Failed to rewrite JPEG upload');
+            }
+
             imagedestroy($image);
-            throw new ImageMetadataStripFailedException('Failed to rewrite JPEG upload');
-        }
-
-        imagedestroy($image);
+        });
     }
 
     private function stripPng(string $path): void
     {
         $this->assertGdAvailable();
 
-        $image = @imagecreatefrompng($path);
-        if ($image === false) {
-            throw new ImageMetadataStripFailedException('Corrupted PNG upload');
-        }
+        GdImageGuard::run(function () use ($path): void {
+            $image = @imagecreatefrompng($path);
+            if ($image === false) {
+                throw new ImageMetadataStripFailedException('Corrupted PNG upload');
+            }
 
-        imagesavealpha($image, true);
-        imagealphablending($image, false);
+            imagesavealpha($image, true);
+            imagealphablending($image, false);
 
-        if (@imagepng($image, $path, 9) === false) {
+            if (@imagepng($image, $path, 9) === false) {
+                imagedestroy($image);
+                throw new ImageMetadataStripFailedException('Failed to rewrite PNG upload');
+            }
+
             imagedestroy($image);
-            throw new ImageMetadataStripFailedException('Failed to rewrite PNG upload');
-        }
-
-        imagedestroy($image);
+        });
     }
 
     private function stripGif(string $path): void
@@ -111,61 +113,67 @@ final class ImageMetadataStripper
             return;
         }
 
-        $this->assertGdAvailable();
+        GdImageGuard::run(function () use ($path): void {
+            $this->assertGdAvailable();
 
-        $image = @imagecreatefromgif($path);
-        if ($image === false) {
-            throw new ImageMetadataStripFailedException('Corrupted GIF upload');
-        }
+            $image = @imagecreatefromgif($path);
+            if ($image === false) {
+                throw new ImageMetadataStripFailedException('Corrupted GIF upload');
+            }
 
-        if (@imagegif($image, $path) === false) {
+            if (@imagegif($image, $path) === false) {
+                imagedestroy($image);
+                throw new ImageMetadataStripFailedException('Failed to rewrite GIF upload');
+            }
+
             imagedestroy($image);
-            throw new ImageMetadataStripFailedException('Failed to rewrite GIF upload');
-        }
-
-        imagedestroy($image);
+        });
     }
 
     private function stripBmp(string $path): void
     {
-        $this->assertGdAvailable();
-
         if (!function_exists('imagecreatefrombmp') || !function_exists('imagebmp')) {
             throw new ImageMetadataStripFailedException('BMP uploads are not supported on this server');
         }
 
-        $image = @imagecreatefrombmp($path);
-        if ($image === false) {
-            throw new ImageMetadataStripFailedException('Corrupted BMP upload');
-        }
+        GdImageGuard::run(function () use ($path): void {
+            $this->assertGdAvailable();
 
-        if (@imagebmp($image, $path) === false) {
+            $image = @imagecreatefrombmp($path);
+            if ($image === false) {
+                throw new ImageMetadataStripFailedException('Corrupted BMP upload');
+            }
+
+            if (@imagebmp($image, $path) === false) {
+                imagedestroy($image);
+                throw new ImageMetadataStripFailedException('Failed to rewrite BMP upload');
+            }
+
             imagedestroy($image);
-            throw new ImageMetadataStripFailedException('Failed to rewrite BMP upload');
-        }
-
-        imagedestroy($image);
+        });
     }
 
     private function stripWebp(string $path): void
     {
-        $this->assertGdAvailable();
-
         if (!function_exists('imagecreatefromwebp') || !function_exists('imagewebp')) {
             throw new ImageMetadataStripFailedException('WebP uploads are not supported on this server');
         }
 
-        $image = @imagecreatefromwebp($path);
-        if ($image === false) {
-            throw new ImageMetadataStripFailedException('Corrupted WebP upload');
-        }
+        GdImageGuard::run(function () use ($path): void {
+            $this->assertGdAvailable();
 
-        if (@imagewebp($image, $path, self::JPEG_QUALITY) === false) {
+            $image = @imagecreatefromwebp($path);
+            if ($image === false) {
+                throw new ImageMetadataStripFailedException('Corrupted WebP upload');
+            }
+
+            if (@imagewebp($image, $path, self::JPEG_QUALITY) === false) {
+                imagedestroy($image);
+                throw new ImageMetadataStripFailedException('Failed to rewrite WebP upload');
+            }
+
             imagedestroy($image);
-            throw new ImageMetadataStripFailedException('Failed to rewrite WebP upload');
-        }
-
-        imagedestroy($image);
+        });
     }
 
     private function stripHeic(string $path): void
@@ -213,7 +221,12 @@ final class ImageMetadataStripper
             return 1;
         }
 
-        return (int) ($exif['Orientation'] ?? 1);
+        $orientation = (int) ($exif['Orientation'] ?? 1);
+        if ($orientation < 1 || $orientation > 8) {
+            throw new ImageMetadataStripFailedException('Invalid JPEG orientation tag');
+        }
+
+        return $orientation;
     }
 
     private function isAnimatedGif(string $path): bool

@@ -17,7 +17,9 @@
     },
     "require": {
         "php": "^8.1",
-        "flarum/core": "^1.8.19"
+        "flarum/core": "^1.8.19",
+        "ext-gd": "*",
+        "ext-exif": "*"
     },
     "require-dev": {
         "fof/upload": "1.9.0",
@@ -25,8 +27,6 @@
     },
     "suggest": {
         "fof/upload": "Target integration is FoF Upload 1.9.0; the privacy listener is inert when FoF Upload is absent or disabled.",
-        "ext-gd": "Required on the Flarum host for JPEG/PNG/WebP/GIF metadata stripping.",
-        "ext-exif": "Required on the Flarum host to apply JPEG orientation before EXIF is discarded.",
         "ext-imagick": "Optional; required only to accept HEIC/HEIF uploads instead of rejecting them."
     },
     "autoload": {
