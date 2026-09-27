@@ -1,16 +1,19 @@
 # flatrate/flarum-media-privacy
 
-FlatRate.wiki Flarum extension that replaces FoF Upload user-derived basenames
-with cryptographically random opaque basenames.
+FlatRate.wiki Flarum extension that hardens FoF Upload media privacy: cryptographically
+random opaque basenames and fail-closed stripping of identifying image metadata before
+storage.
 
 | Field | Value |
 | --- | --- |
 | Composer package | `flatrate/flarum-media-privacy` |
 | Flarum extension ID | `flatrate-flarum-media-privacy` |
 | Stable target | `1.0.0` |
-| FoF integration | `fof/upload` **1.9.0** event `FoF\Upload\Events\File\IsSlugged` |
+| FoF integration | `fof/upload` **1.9.0** (`IsSlugged`, `WillBeUploaded`) |
 
-## Responsibility
+## Responsibilities
+
+### Opaque basenames (`IsSlugged`)
 
 When FoF Upload dispatches `IsSlugged`, this extension:
 
@@ -29,6 +32,52 @@ The opaque name does **not** encode original filename, user ID, username, email,
 VIN, timestamp, discussion/post IDs, IP, session identifiers, or sequential
 counters.
 
+### Image metadata stripping (`WillBeUploaded`)
+
+Before FoF Upload writes a file to its storage adapter (local disk, S3/R2, etc.),
+this extension listens to `FoF\Upload\Events\File\WillBeUploaded` with a **lower**
+listener priority than FoF's built-in `AddImageProcessor`, so FoF resize/watermark
+logic runs first and this extension rewrites the temp upload bytes that are actually
+stored.
+
+For supported raster uploads, stored/served bytes are rewritten to remove:
+
+- EXIF (including orientation tags after pixels are normalized)
+- GPS and other location tags
+- XMP and IPTC blocks
+- Maker notes and embedded thumbnails
+- Camera/device serial numbers, owner names, user comments, and capture timestamps
+- GIF comment/application extensions (except the `NETSCAPE2.0` animation block)
+
+**Fail-closed:** if metadata cannot be removed safely, the upload is rejected with a
+validation error and nothing is stored with the original metadata.
+
+#### Accepted image formats
+
+| Format | Handling |
+| --- | --- |
+| JPEG (`image/jpeg`, `image/jpg`, `image/pjpeg`) | GD re-encode + EXIF orientation applied before discard |
+| PNG | GD re-encode (drops textual/binary metadata chunks) |
+| WebP | GD re-encode when `imagecreatefromwebp` / `imagewebp` are available |
+| GIF | Comment/XMP application extensions stripped; static GIFs are GD re-encoded; animated GIFs keep frames but lose metadata extensions |
+| HEIC/HEIF | **Rejected unless `ext-imagick` is present**; when present, Imagick `autoOrient` + `stripImage` |
+
+Non-image uploads are untouched by the metadata stripper (FoF Upload continues to
+handle them under its own MIME rules).
+
+#### Runtime image stack assumption (PikaPods / Flarum 1.8.19)
+
+FlatRate.wiki runs on the managed PikaPods Flarum image (no shell). This extension
+depends only on PHP extensions that Flarum itself already requires for avatars and
+forum operation:
+
+- **`ext-gd` (required):** primary metadata removal path for JPEG, PNG, WebP, and static GIF
+- **`ext-exif` (required for JPEG orientation):** reads orientation before EXIF is discarded
+- **`ext-imagick` (optional):** if absent, **HEIC/HEIF uploads are rejected** rather than stored with metadata
+
+Imagick is **not** required for JPEG/PNG/WebP/GIF. Intervention Image (pulled in by
+FoF Upload) is not used directly by this extension.
+
 ## Deliberate inert design
 
 Runtime `require` depends only on:
@@ -41,24 +90,11 @@ flarum/core: ^1.8.19
 `fof/upload` is a `require-dev` / `suggest` operational target, **not** a hard
 runtime Composer dependency. The extension remains loadable and enableable when
 FoF Upload is installed-but-disabled, and `extend.php` returns an empty extender
-list when the FoF `IsSlugged` class is absent.
+list when FoF Upload event classes are absent.
 
 This allows FlatRate to enable the privacy guard **before** the first deliberate
 FoF Upload enablement (FORUM-MEDIA-001D), without an enable-order dependency that
 would force FoF Upload on first.
-
-## Non-goals
-
-```text
-OPAQUE_BASENAME_REMEDIATION=IMPLEMENTED
-EXIF_SANITIZATION=NOT_IMPLEMENTED
-EXIF_SANITIZER_REQUIRED=UNKNOWN_PENDING_001E_FIXTURE
-```
-
-This package does not strip GPS EXIF, camera make/model, capture timestamps, or
-other embedded image metadata. It has no frontend JS, admin UI, CSS, routes,
-settings, migrations, permissions, cron, queues, Cloudflare, R2, or identity /
-SSO coupling.
 
 ## Development
 
@@ -68,7 +104,9 @@ composer validate --strict
 composer test
 ```
 
-CI matrix: PHP 8.1, 8.2, 8.3, 8.4 with FoF Upload pinned to `1.9.0`.
+CI matrix: PHP 8.1, 8.2, 8.3, 8.4 with FoF Upload pinned to `1.9.0`. Tests use
+ImageMagick/ExifTool on the runner to inject GPS/XMP/EXIF fixtures and verify the
+sanitized output.
 
 ## License
 
