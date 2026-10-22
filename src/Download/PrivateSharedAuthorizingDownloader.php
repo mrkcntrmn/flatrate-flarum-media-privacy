@@ -21,8 +21,11 @@ use Psr\Http\Message\ResponseInterface;
  * FoF Upload 2.0.2 reads the file before WillBeDownloaded. That event's
  * download value is the optional logging row, and it is null when
  * fof-upload.disableDownloadLogging is on. The command actor is the
- * identity authority. File::actor_id and File::hidden are the persisted
- * owner and revocation fields. An unstored participant list or object ACL is not consulted.
+ * identity authority. FoF stores a private-shared file as shared and hidden
+ * and leaves actor_id empty. hidden is the media-manager flag, not deletion.
+ * PersistPrivateSharedOwner writes the uploader into actor_id before save.
+ * A row that still has no actor_id stays denied. An unstored participant
+ * list or object ACL is not consulted.
  */
 final class PrivateSharedAuthorizingDownloader implements Downloader
 {
@@ -49,10 +52,6 @@ final class PrivateSharedAuthorizingDownloader implements Downloader
     {
         $path = (string) ($file->path ?? '');
         if (!PrivateObjectPolicy::storedPrivatePathIsSafe($path)) {
-            throw new PermissionDeniedException();
-        }
-
-        if (!empty($file->hidden)) {
             throw new PermissionDeniedException();
         }
 

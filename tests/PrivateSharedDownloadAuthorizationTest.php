@@ -7,6 +7,7 @@
 namespace FlatRate\FlarumMediaPrivacy\Tests;
 
 use FlatRate\FlarumMediaPrivacy\Download\PrivateSharedAuthorizingDownloader;
+use FlatRate\FlarumMediaPrivacy\Listener\PersistPrivateSharedOwner;
 use Flarum\User\Exception\PermissionDeniedException;
 use Flarum\User\Guest;
 use Flarum\User\User;
@@ -118,11 +119,27 @@ final class PrivateSharedDownloadAuthorizationTest extends TestCase
         }
     }
 
-    public function testHiddenFileIsDeniedToItsOwner(): void
+    public function testFoFPrivateSharedShapeAllowsTheStoredOwner(): void
     {
         $spy = new SpyPrivateReader();
         $downloader = new PrivateSharedAuthorizingDownloader($spy);
         $file = $this->privateFile(4);
+        $file->shared = true;
+        $file->hidden = true;
+
+        $response = $downloader->download($file, new DownloadCommand('uuid-1', $this->member(4)));
+
+        $this->assertSame(1, $spy->calls);
+        $this->assertSame('PRIVATE-BYTES', (string) $response->getBody());
+    }
+
+    public function testUnstampedPrivateSharedFileIsDenied(): void
+    {
+        $spy = new SpyPrivateReader();
+        $downloader = new PrivateSharedAuthorizingDownloader($spy);
+        $file = $this->privateFile(4);
+        $file->actor_id = null;
+        $file->shared = true;
         $file->hidden = true;
 
         $this->expectException(PermissionDeniedException::class);
@@ -131,6 +148,24 @@ final class PrivateSharedDownloadAuthorizationTest extends TestCase
         } finally {
             $this->assertSame(0, $spy->calls);
         }
+    }
+
+    public function testWillBeSavedStoresTheUploaderOnActorId(): void
+    {
+        $file = new File();
+        $file->upload_method = 'private-shared';
+        $file->shared = true;
+        $file->hidden = true;
+        $file->actor_id = null;
+        $path = tempnam(sys_get_temp_dir(), 'fr-upload');
+        $uploaded = new \Symfony\Component\HttpFoundation\File\UploadedFile($path, 'a.jpg', null, null, true);
+
+        (new PersistPrivateSharedOwner())->handle(
+            new \FoF\Upload\Events\File\WillBeSaved($this->member(4), $file, $uploaded, 'image/jpeg')
+        );
+
+        $this->assertSame(4, (int) $file->actor_id);
+        @unlink($path);
     }
 
     public function testInvalidObjectKeyIsDeniedBeforeRead(): void
@@ -173,6 +208,7 @@ final class PrivateSharedDownloadAuthorizationTest extends TestCase
         $this->assertStringNotContainsString('PrivateDownloadGuard', $extend);
         $this->assertStringContainsString('prependDownloader', $extend);
         $this->assertStringContainsString('MediaPrivacyServiceProvider', $extend);
+        $this->assertStringContainsString('PersistPrivateSharedOwner', $extend);
     }
 
     private function privateFile(int $ownerId): File

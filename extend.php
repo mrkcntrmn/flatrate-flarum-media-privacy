@@ -14,7 +14,8 @@ if (!class_exists(IsSlugged::class)) {
 
 $extenders = [
     (new Extend\Event())
-        ->listen(IsSlugged::class, OpaqueUploadBasename::class),
+        ->listen(IsSlugged::class, OpaqueUploadBasename::class)
+        ->listen(\FoF\Upload\Events\File\WillBeSaved::class, \FlatRate\FlarumMediaPrivacy\Listener\PersistPrivateSharedOwner::class),
 ];
 
 if (class_exists(\FoF\Upload\Commands\DownloadHandler::class)
