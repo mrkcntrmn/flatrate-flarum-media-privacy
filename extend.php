@@ -12,7 +12,14 @@ if (!class_exists(IsSlugged::class)) {
     return [];
 }
 
-return [
+$extenders = [
     (new Extend\Event())
         ->listen(IsSlugged::class, OpaqueUploadBasename::class),
 ];
+
+if (class_exists(\FoF\Upload\Events\File\WillBeDownloaded::class)) {
+    $extenders[] = (new Extend\Event())
+        ->listen(\FoF\Upload\Events\File\WillBeDownloaded::class, \FlatRate\FlarumMediaPrivacy\Listener\PrivateDownloadGuard::class);
+}
+
+return $extenders;
