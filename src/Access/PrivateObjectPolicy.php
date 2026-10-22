@@ -64,12 +64,38 @@ final class PrivateObjectPolicy
     }
 
     /**
+     * FoF stores private-shared objects as YYYY-MM-DD/<timestamp>-<micro>-<basename>.
+     * A slash is the date prefix only. Traversal, extra segments, and absolute paths are rejected.
+     */
+    public static function storedPrivatePathIsSafe(string $path): bool
+    {
+        if ($path === '' || strlen($path) > 255) {
+            return false;
+        }
+        if (str_contains($path, "\0") || str_contains($path, '..') || str_contains($path, '\\') || str_contains($path, '://') || str_starts_with($path, '/')) {
+            return false;
+        }
+
+        $parts = explode('/', $path);
+        if (count($parts) > 2) {
+            return false;
+        }
+        if (count($parts) === 2 && preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/', $parts[0]) !== 1) {
+            return false;
+        }
+
+        $name = $parts[count($parts) - 1];
+
+        return preg_match('/^[A-Za-z0-9._-]{1,200}$/', $name) === 1;
+    }
+
+    /**
      * @param array{id:?int,suspended?:bool} $actor
-     * @param array{ownerId:?int,method:?string,acl:?string,key:string,deleted?:bool,revoked?:bool,participantIds?:list<int>} $file
+     * @param array{ownerId:?int,method:?string,acl:?string,key:string,deleted?:bool,revoked?:bool} $file
      */
     public static function decision(array $actor, array $file): string
     {
-        if (!self::objectKeyIsSafe((string) ($file['key'] ?? ''))) {
+        if (!self::storedPrivatePathIsSafe((string) ($file['key'] ?? ''))) {
             return 'traversal';
         }
 
@@ -90,9 +116,9 @@ final class PrivateObjectPolicy
         }
 
         $ownerId = isset($file['ownerId']) ? (int) $file['ownerId'] : 0;
-        $participants = array_map('intval', $file['participantIds'] ?? []);
         $actorId = (int) $actorId;
-        if ($actorId === $ownerId || in_array($actorId, $participants, true)) {
+        // participantIds is not a FoF Upload file column. Non-owners stay denied.
+        if ($ownerId !== 0 && $actorId === $ownerId) {
             return 'allow';
         }
 

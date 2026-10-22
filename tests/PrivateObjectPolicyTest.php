@@ -44,7 +44,7 @@ final class PrivateObjectPolicyTest extends TestCase
         $this->assertSame('suspended', PrivateObjectPolicy::decision(['id' => 4, 'suspended' => true], $file));
         $this->assertSame('revoked', PrivateObjectPolicy::decision(['id' => 4], $file + ['revoked' => true]));
         $this->assertSame('allow', PrivateObjectPolicy::decision(['id' => 4], $file));
-        $this->assertSame('allow', PrivateObjectPolicy::decision(['id' => 9], $file));
+        $this->assertSame('cross_user', PrivateObjectPolicy::decision(['id' => 9], $file));
     }
 
     public function testTraversalAndHeaderSafety(): void

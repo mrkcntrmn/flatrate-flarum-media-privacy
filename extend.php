@@ -17,9 +17,10 @@ $extenders = [
         ->listen(IsSlugged::class, OpaqueUploadBasename::class),
 ];
 
-if (class_exists(\FoF\Upload\Events\File\WillBeDownloaded::class)) {
-    $extenders[] = (new Extend\Event())
-        ->listen(\FoF\Upload\Events\File\WillBeDownloaded::class, \FlatRate\FlarumMediaPrivacy\Listener\PrivateDownloadGuard::class);
+if (class_exists(\FoF\Upload\Commands\DownloadHandler::class)
+    && method_exists(\FoF\Upload\Commands\DownloadHandler::class, 'prependDownloader')) {
+    $extenders[] = (new Extend\ServiceProvider())
+        ->register(\FlatRate\FlarumMediaPrivacy\MediaPrivacyServiceProvider::class);
 }
 
 return $extenders;
