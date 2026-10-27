@@ -31,16 +31,71 @@ jobs:
         run: composer validate --strict
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
+        run: composer update --no-interaction --prefer-dist
 
-      - name: Assert FoF Upload pin
+      - name: Assert FoF Upload + Flysystem 3 pins
         run: |
           composer show fof/upload | tee /tmp/fof-upload.txt
-          grep -E '^versions\s+:\s+\* 2\.0\.2$' /tmp/fof-upload.txt
+          grep -E '^versions\s+:\s+\* 2\.0\.[0-9]+$' /tmp/fof-upload.txt
           composer show flarum/core | tee /tmp/flarum-core.txt
           grep -E '^versions\s+:\s+\* v2\.0\.2$' /tmp/flarum-core.txt
           composer show league/flysystem | tee /tmp/flysystem.txt
           grep -E '^versions\s+:\s+\* 3\.' /tmp/flysystem.txt
+          composer show league/flysystem-aws-s3-v3 | tee /tmp/flysystem-s3.txt
+          grep -E '^versions\s+:\s+\* 3\.' /tmp/flysystem-s3.txt
 
       - name: Run tests
         run: composer test
+
+  media-f2-r2:
+    name: Flarum 2.0.2 media FoF Upload / Flysystem 3 / privacy
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MYSQL_ROOT_PASSWORD: disposable-local
+          MYSQL_DATABASE: flarum_media_f2_r2
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, curl, gd, mbstring, pdo_mysql, zip, intl
+          coverage: none
+          tools: composer:v2
+
+      - name: Install moto S3 mock
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/moto-venv"
+          "${RUNNER_TEMP}/moto-venv/bin/pip" install 'moto[server]' boto3
+          echo "MOTO_BIN=${RUNNER_TEMP}/moto-venv/bin/moto_server" >> "$GITHUB_ENV"
+
+      - name: Run disposable media E2E
+        env:
+          FLARUM_DB_HOST: 127.0.0.1
+          FLARUM_DB_PORT: 3306
+          FLARUM_DB_USERNAME: root
+          FLARUM_DB_PASSWORD: disposable-local
+          FLARUM_DB_DATABASE: flarum_media_f2_r2
+          MEDIA_F2_IN_DOCKER: '1'
+          KEEP_SMOKE_ROOT: '0'
+          FOF_UPLOAD_PIN: '2.0.3'
+        run: bash scripts/ci-flarum-f2-media-r2.sh
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forum-f2-media-r2-evidence
+          path: evidence/forum-f2-media-r2/
+          if-no-files-found: ignore

@@ -1,0 +1,31 @@
+{
+  "tested_at": "2026-10-27T13:53:19Z",
+  "media_privacy_sha": "15586dc430de490d2fe81f1a8d567c4c0e4b361f",
+  "extension_id": "flatrate-media-privacy",
+  "fof_upload": "2.0.3",
+  "flysystem": "3.36.0",
+  "flysystem_aws_s3_v3": "3.35.3",
+  "flarum_core": "2.0.2",
+  "php": "8.4",
+  "matrix": {
+    "MEDIA_COMPOSER_F2": "PASS",
+    "MEDIA_FLARUM_BOOT": "PASS",
+    "FOF_UPLOAD_F2": "PASS",
+    "FLYSYSTEM3": "PASS",
+    "ISOLATED_OBJECT_WRITE": "PASS",
+    "ISOLATED_OBJECT_READ": "PASS",
+    "PRIVATE_DOWNLOAD_HANDLER": "PASS",
+    "OWNER_DOWNLOAD": "PASS",
+    "GUEST_DENIAL": "PASS",
+    "WRONG_USER_DENIAL": "PASS",
+    "SUSPENDED_DENIAL": "PASS",
+    "MEDIA_DENIAL_MATRIX": "PASS",
+    "HISTORICAL_URL_COMPATIBILITY": "PASS",
+    "MEDIA_METADATA_PRESERVED": "PASS",
+    "MISSING_PRIVATE_OBJECT": "PASS",
+    "MEDIA_DISABLE_FALLBACK": "PASS",
+    "S3_COMPATIBLE_OBJECT_E2E": "NOT_PROVEN",
+    "CLOUDFLARE_R2_COMPATIBILITY": "NOT_PROVEN"
+  },
+  "production_mutated": false
+}
