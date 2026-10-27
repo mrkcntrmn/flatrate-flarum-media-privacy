@@ -20,11 +20,13 @@
         "flarum/core": "^1.8.19 || ^2.0.2"
     },
     "require-dev": {
-        "fof/upload": "2.0.2",
+        "fof/upload": "^2.0.2",
+        "league/flysystem-aws-s3-v3": "^3.0",
         "phpunit/phpunit": "^9.6"
     },
     "suggest": {
-        "fof/upload": "FoF Upload 1.9.x or 2.0.2. Both expose IsSlugged. The listener is inert when that event is absent. Private-shared downloads are denied unless the actor is the owner or a listed participant."
+        "fof/upload": "FoF Upload 1.9.x or 2.0.2+. Both expose IsSlugged. The listener is inert when that event is absent. Private-shared downloads are denied unless the actor is the owner or a listed participant.",
+        "league/flysystem-aws-s3-v3": "Required for FoF Upload aws-s3 / R2-compatible object storage on Flysystem 3."
     },
     "autoload": {
         "psr-4": {
