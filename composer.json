@@ -21,7 +21,7 @@
     },
     "require-dev": {
         "fof/upload": "^2.0.2",
-        "league/flysystem-aws-s3-v3": "^3.0",
+        "league/flysystem-aws-s3-v3": "^3.25",
         "phpunit/phpunit": "^9.6"
     },
     "suggest": {
